@@ -25,6 +25,10 @@ resource "helm_release" "prometheus_stack" {
   values = [
     "${file("${path.module}/values/values-prometheus.yaml")}"
   ]
+
+  depends_on = [
+    kubernetes_storage_class_v1.gp3
+  ]
 }
 
 resource "helm_release" "blackbox" {
@@ -51,8 +55,6 @@ resource "helm_release" "metrics_server" {
   values = [
     file("${path.module}/values/values-metrics-server.yaml")
   ]
-
-  depends_on = [module.eks]
 }
 
 # Sample application with gp3 volume mount
