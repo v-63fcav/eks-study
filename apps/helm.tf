@@ -4,26 +4,11 @@ resource "helm_release" "alb_controller" {
   chart      = "aws-load-balancer-controller"
   namespace  = "kube-system"
 
-  set = [
-  {
-    name  = "clusterName"
-    value = var.cluster_name
-  },
-
-    {
-    name  = "serviceAccount.create"
-    value = "true"
-  },
-
-  {
-    name  = "serviceAccount.name"
-    value = "aws-load-balancer-controller"
-  },
-
-  {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = var.alb_irsa_role
-  }
+  values = [
+    templatefile("${path.module}/values/values-alb-controller.yaml", {
+      cluster_name = var.cluster_name
+      alb_irsa_role = var.alb_irsa_role
+    })
   ]
 }
 
@@ -37,7 +22,7 @@ resource "helm_release" "prometheus_stack" {
   create_namespace = true
 
   values = [
-    "${file("values-prometheus.yaml")}"
+    "${file("${path.module}/values/values-prometheus.yaml")}"
   ]
 
   # Ensure StorageClass and ALB controller exist before deploying
@@ -56,6 +41,6 @@ resource "helm_release" "blackbox" {
   version    = "8.8.0"
 
   values = [
-    file("${path.module}/values-blackbox.yaml")
+    file("${path.module}/values/values-blackbox.yaml")
   ]
 }
