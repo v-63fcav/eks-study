@@ -1,0 +1,13 @@
+config:
+  modules:
+    icmp:
+      prober: icmp
+      timeout: 5s
+      icmp:
+        preferred_ip_protocol: "ip4"
+
+podSecurityContext:
+  runAsUser: 0
+  capabilities:
+    add:
+      - NET_RAW

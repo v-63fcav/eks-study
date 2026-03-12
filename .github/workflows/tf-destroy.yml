@@ -1,0 +1,47 @@
+name: Terraform Destroy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  infra:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="bucket=ps-sl-state-bucket-cavi-2" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=us-east-2" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -input=false
+        continue-on-error: false
+
+      - name: Terraform Destroy
+        if: github.ref == 'refs/heads/main' && steps.plan.outcome == 'success'
+        run: terraform destroy -auto-approve
