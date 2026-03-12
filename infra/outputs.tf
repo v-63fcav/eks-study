@@ -27,7 +27,8 @@ output "region" {
 }
 
 output "oidc_provider_arn" {
-  value = module.eks.oidc_provider_arn
+  description = "OIDC provider ARN for EKS cluster"
+  value       = module.eks.oidc_provider_arn
 }
 
 output "alb_irsa_role" {
