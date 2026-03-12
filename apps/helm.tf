@@ -42,3 +42,23 @@ resource "helm_release" "blackbox" {
     file("${path.module}/values/values-blackbox.yaml")
   ]
 }
+
+# Sample application with gp3 volume mount
+resource "helm_release" "sample_app" {
+  name       = "sample-app"
+  namespace  = "default"
+  create_namespace = false
+
+  chart = "${path.module}/sample-app-chart"
+  
+  timeout = 600
+  atomic  = true
+
+  values = [
+    file("${path.module}/sample-app-chart/values.yaml")
+  ]
+
+  depends_on = [
+    kubernetes_storage_class_v1.gp3
+  ]
+}

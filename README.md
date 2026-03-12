@@ -193,6 +193,25 @@ A infraestrutura implementa uma topologia de rede segura:
 
 ## 🚀 Componentes de Aplicação
 
+### Storage Classes
+
+#### GP3 StorageClass
+- Configuração otimizada para volumes GP3 da AWS
+- IOPS: 3000 (baseline)
+- Throughput: 125 MiB/s (baseline)
+- Criptografia: habilitada por padrão
+- Expansão de volume: suportada
+- Tipo de bind: WaitForFirstConsumer (recomendado para melhor zone affinity)
+
+### Aplicação de Exemplo
+
+#### Sample App
+- Aplicação Nginx simples para demonstração
+- Monta volume GP3 em `/data`
+- Demonstra uso de PersistentVolumeClaim
+- Configurável via values.yaml
+- Pode ser removida em produção
+
 ### Stack de Monitoramento
 
 #### Prometheus
