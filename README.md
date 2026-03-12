@@ -196,12 +196,12 @@ A infraestrutura implementa uma topologia de rede segura:
 ### Storage Classes
 
 #### GP3 StorageClass
-- Configuração otimizada para volumes GP3 da AWS
-- IOPS: 3000 (baseline)
-- Throughput: 125 MiB/s (baseline)
+- Provider: `kubernetes.io/aws-ebs` (in-tree provider para maior estabilidade)
+- Tipo: gp3
 - Criptografia: habilitada por padrão
 - Expansão de volume: suportada
 - Tipo de bind: WaitForFirstConsumer (recomendado para melhor zone affinity)
+- **Nota**: Usa in-tree provider para evitar PVCs pendentes que podem ocorrer com o driver CSI `ebs.csi.aws.com`
 
 ### Aplicação de Exemplo
 
