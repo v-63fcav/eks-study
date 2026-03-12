@@ -13,12 +13,8 @@ variable "kube_host" {}
 variable "kube_ca" {}
 variable "alb_irsa_role" {}
 
-variable "adot_irsa_role" {
-  type        = string
-  description = "IAM role ARN for ADOT collector"
-}
-
-variable "amp_endpoint" {
-  type        = string
-  description = "AMP remote write endpoint"
+# Read from infra remote state
+locals {
+  oidc_provider_arn = data.terraform_remote_state.infra.outputs.oidc_provider_arn
+  adot_irsa_role   = data.terraform_remote_state.infra.outputs.adot_irsa_role
 }

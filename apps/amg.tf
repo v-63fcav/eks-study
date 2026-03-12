@@ -4,16 +4,9 @@ data "aws_caller_identity" "current" {}
 resource "aws_grafana_workspace" "main" {
   name              = "eks-study-grafana"
   account_access_type = "CURRENT_ACCOUNT"
-  
-  data_sources {
-    prometheus {
-      name               = "amp"
-      prometheus_endpoint = aws_prometheus_workspace.main.prometheus_endpoint
-      workspace_id       = aws_prometheus_workspace.main.id
-    }
-  }
-
-  role_arn = aws_iam_role.amg_role.arn
+  permission_type   = "SERVICE_MANAGED"
+  role_arn         = aws_iam_role.amg_role.arn
+  authentication_providers = ["AWS_SSO"]
 
   tags = {
     Environment = "eks-study"
@@ -75,5 +68,5 @@ output "amg_workspace_id" {
 
 output "amg_workspace_url" {
   description = "AMG workspace URL"
-  value       = aws_grafana_workspace.main.workspace_endpoint
+  value       = aws_grafana_workspace.main.endpoint
 }

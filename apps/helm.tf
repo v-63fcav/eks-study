@@ -25,12 +25,12 @@ resource "helm_release" "adot_collector" {
 
   values = [
     templatefile("${path.module}/values/values-adot.yaml", {
-      adot_irsa_role = aws_iam_role.adot_collector_role.arn
+      adot_irsa_role = local.adot_irsa_role
       amp_endpoint   = aws_prometheus_workspace.main.prometheus_endpoint
     })
   ]
 
-  depends_on = [aws_prometheus_workspace.main, aws_iam_role.adot_collector_role]
+  depends_on = [aws_prometheus_workspace.main]
 }
 
 # Blackbox Exporter - kept for ADOT integration
