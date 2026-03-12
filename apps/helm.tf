@@ -30,7 +30,8 @@ resource "helm_release" "prometheus_stack" {
 #     kubernetes_storage_class_v1.gp3,
 #     helm_release.alb_controller
 #   ]
-# }
+
+}
 
 resource "helm_release" "blackbox" {
   name       = "blackbox-exporter"
