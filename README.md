@@ -199,7 +199,7 @@ A infraestrutura implementa uma topologia de rede segura:
 - Banco de dados de séries temporais para coleta de métricas
 - Service discovery para recursos Kubernetes
 - Períodos de retenção configuráveis
-- Capacidades de alerta
+- Capacidades de alerta (Alertmanager desabilitado para simplificar deployment)
 
 #### Grafana
 - Dashboard de visualização para métricas

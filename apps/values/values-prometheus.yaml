@@ -57,10 +57,4 @@ prometheus:
             replacement: blackbox-exporter.monitoring.svc.cluster.local:9115
 
 alertmanager:
-  enabled: true
-  persistence:
-    enabled: true
-    storageClassName: gp3
-    accessModes:
-      - ReadWriteOnce
-    size: 2Gi
+  enabled: false
