@@ -1,15 +1,7 @@
 defaultRules:
   create: true
-
 grafana:
   enabled: true
-  persistence:
-    enabled: true
-    type: pvc
-    storageClassName: gp3
-    accessModes:
-      - ReadWriteOnce
-    size: 10Gi
   ingress:
     annotations:
       alb.ingress.kubernetes.io/healthcheck-path: /api/health
@@ -20,27 +12,14 @@ grafana:
     ingressClassName: alb
     paths:
     - /
-
 kubeStateMetrics:
   enabled: true
-
 nodeExporter:
   enabled: true
-
 prometheus:
   prometheusSpec:
     retention: 10d
-    retentionSize: 50GB
     scrapeInterval: 15s
-    storageSpec:
-      volumeClaimTemplate:
-        spec:
-          storageClassName: gp3
-          accessModes:
-            - ReadWriteOnce
-          resources:
-            requests:
-              storage: 100Gi
     additionalScrapeConfigs:
       - job_name: "node-to-node-latency"
         metrics_path: /probe
@@ -55,6 +34,3 @@ prometheus:
             target_label: instance
           - target_label: __address__
             replacement: blackbox-exporter.monitoring.svc.cluster.local:9115
-
-alertmanager:
-  enabled: false
