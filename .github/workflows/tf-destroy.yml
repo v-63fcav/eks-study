@@ -47,6 +47,69 @@ jobs:
           echo "cluster_ca=$(terraform output -raw cluster_ca)" >> $GITHUB_OUTPUT
           echo "alb_irsa_role=$(terraform output -raw alb_irsa_role)" >> $GITHUB_OUTPUT
 
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region us-east-2 \
+            --name ${{ steps.infra.outputs.cluster_name }}
+
+      # Delete Ingress resources while the ALB Controller is still running.
+      # The controller watches Ingress deletions to deprovision the AWS ALB and
+      # its associated security group. If the controller pod is removed first,
+      # both the ALB and its SG are left orphaned — the SG blocks VPC deletion.
+      - name: Delete Ingress resources and wait for ALB deprovisioning
+        run: |
+          kubectl delete ingress --all --all-namespaces --ignore-not-found
+
+          # Poll until no ALBs tagged by this cluster remain in AWS.
+          # This is more reliable than a fixed sleep.
+          CLUSTER="${{ steps.infra.outputs.cluster_name }}"
+          echo "Waiting for ALBs tagged kubernetes.io/cluster/$CLUSTER to be deleted..."
+          for i in $(seq 1 24); do
+            COUNT=$(aws elbv2 describe-load-balancers --region us-east-2 \
+              --query "LoadBalancers[?contains(LoadBalancerName, '${CLUSTER}') || \
+                Tags[?Key=='kubernetes.io/cluster/${CLUSTER}']].LoadBalancerArn" \
+              --output text 2>/dev/null | wc -w)
+            if [ "$COUNT" -eq 0 ]; then
+              echo "All ALBs deprovisioned."
+              break
+            fi
+            echo "  $COUNT ALB(s) still present, waiting 10s... ($i/24)"
+            sleep 10
+          done
+
+          # Safety net: delete any security groups the ALB controller created
+          # but did not clean up (tagged elbv2.k8s.aws/cluster=<cluster>).
+          SG_IDS=$(aws ec2 describe-security-groups --region us-east-2 \
+            --filters "Name=tag:elbv2.k8s.aws/cluster,Values=$CLUSTER" \
+            --query 'SecurityGroups[*].GroupId' --output text)
+          if [ -n "$SG_IDS" ]; then
+            echo "Deleting residual ALB security groups: $SG_IDS"
+            for sg in $SG_IDS; do
+              aws ec2 delete-security-group --region us-east-2 --group-id "$sg" || true
+            done
+          fi
+
+      # kube-prometheus-stack removes the Prometheus Operator before its CRD
+      # instances (ServiceMonitor, PrometheusRule, etc.). With the operator gone,
+      # nothing processes the monitoring.coreos.com finalizers, leaving those
+      # resources stuck in Terminating and blocking the Helm release deletion.
+      # Stripping finalizers here lets Kubernetes garbage-collect them normally.
+      - name: Remove Prometheus Operator finalizers
+        run: |
+          for crd in prometheuses alertmanagers prometheusrules servicemonitors \
+                     podmonitors thanosrulers probes prometheusagents scrapeconfigs; do
+            kubectl get "$crd" --all-namespaces --ignore-not-found -o json \
+              | jq -r '.items[] | "\(.metadata.namespace) \(.metadata.name)"' \
+              | while read -r ns name; do
+                  kubectl patch "$crd" "$name" -n "$ns" \
+                    --type=merge -p '{"metadata":{"finalizers":null}}' || true
+                done
+          done
+
       - name: Terraform Init - Apps
         run: |
           terraform init \
