@@ -29,8 +29,8 @@ singleBinary:
 
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: 50m
+      memory: 128Mi
     limits:
       memory: 512Mi
 
@@ -46,6 +46,13 @@ write:
   replicas: 0
 backend:
   replicas: 0
+
+# Disable Memcached caches — enabled by default in v6 but incompatible with
+# SingleBinary/filesystem mode and will hang waiting for cache pods to be ready
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
 
 # Disable self-monitoring and Grafana agent to keep it lightweight
 monitoring:
