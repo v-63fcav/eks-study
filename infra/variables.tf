@@ -1,5 +1,5 @@
 variable "kubernetes_version" {
-  default     = 1.34
+  default     = 1.32
   description = "Kubernetes version"
 }
 
@@ -21,3 +21,4 @@ variable "eks_admin_principal_arns" {
   ]
   description = "List of IAM principal ARNs to grant EKS cluster admin access (e.g., arn:aws:iam::123456789012:user/username, arn:aws:iam::123456789012:root)"
 }
+
