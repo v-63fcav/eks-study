@@ -1,0 +1,92 @@
+## kube-prometheus-stack values for EKS
+## Chart: prometheus-community/kube-prometheus-stack
+
+# ── Prometheus ────────────────────────────────────────────────────────────────
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    retentionSize: "40GiB"
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+
+    # Automatically discover ServiceMonitors and PodMonitors across all namespaces
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+# ── Alertmanager ──────────────────────────────────────────────────────────────
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+# ── Grafana ───────────────────────────────────────────────────────────────────
+grafana:
+  adminPassword: "changeme"   # Override via tfvars or a Kubernetes secret in production
+
+  persistence:
+    enabled: true
+    storageClassName: gp3
+    size: 10Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+  # Pre-built dashboards for EKS
+  defaultDashboardsEnabled: true
+  defaultDashboardsTimezone: utc
+
+  service:
+    type: ClusterIP
+
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    hosts:
+      - ""   # ALB hostname is assigned dynamically; leave empty or set a custom domain
+    path: /
+    pathType: Prefix
+
+# ── Node Exporter ─────────────────────────────────────────────────────────────
+nodeExporter:
+  enabled: true
+
+# ── kube-state-metrics ────────────────────────────────────────────────────────
+kubeStateMetrics:
+  enabled: true
+
+# ── Prometheus Operator ───────────────────────────────────────────────────────
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
