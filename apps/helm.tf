@@ -52,6 +52,20 @@ resource "helm_release" "tempo" {
   depends_on = [kubernetes_storage_class_v1.gp3, helm_release.kube_prometheus_stack]
 }
 
+resource "helm_release" "promtail" {
+  name       = "promtail"
+  repository = "https://grafana.github.io/helm-charts"
+  chart      = "promtail"
+  namespace  = "monitoring"
+
+  set {
+    name  = "config.clients[0].url"
+    value = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+  }
+
+  depends_on = [helm_release.loki]
+}
+
 resource "helm_release" "sample_app" {
   name      = "sample-app"
   chart     = "${path.module}/sample-app-chart"
