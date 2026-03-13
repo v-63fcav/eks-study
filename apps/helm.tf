@@ -58,10 +58,12 @@ resource "helm_release" "promtail" {
   chart      = "promtail"
   namespace  = "monitoring"
 
-  set {
-    name  = "config.clients[0].url"
-    value = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
-  }
+  set = [
+    {
+      name  = "config.clients[0].url"
+      value = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+    }
+  ]
 
   depends_on = [helm_release.loki]
 }
