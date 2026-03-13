@@ -131,113 +131,88 @@ Antes de implantar este projeto, certifique-se de ter o seguinte instalado:
 ## 📁 Estrutura do Projeto
 
 ```
-ps-sl/
-├── infra/                    # Código Terraform de infraestrutura
-│   ├── backend.tf           # Configuração do backend Terraform
-│   ├── eks-cluster.tf       # Definição do cluster EKS
-│   ├── iam.tf              # Roles e políticas IAM
-│   ├── iam_policy.json     # Documento de política IAM
-│   ├── outputs.tf          # Outputs da infraestrutura
-│   ├── sg.tf              # Configurações de security groups
-│   ├── variables.tf       # Variáveis de entrada
-│   ├── versions.tf        # Versões dos providers
-│   └── vpc.tf            # VPC e rede
-├── apps/                     # Código Terraform de aplicações
-│   ├── backend.tf         # Configuração do backend Terraform
-│   ├── helm.tf           # Deployments de charts Helm
-│   ├── k8s-resources.tf  # Recursos Kubernetes adicionais
-│   ├── providers.tf      # Configurações dos providers
-│   ├── variables.tf      # Variáveis de entrada
-│   ├── versions.tf       # Versões dos providers
-│   └── values/           # Arquivos de configuração Helm
-│       ├── values-alb-controller.yaml   # Values do ALB controller
-│       ├── values-blackbox.yaml         # Values do blackbox exporter
-│       └── values-prometheus.yaml       # Values do stack Prometheus
+eks-study/
+├── infra/                              # Camada de infraestrutura AWS
+│   ├── eks-cluster.tf                 # Cluster EKS, node groups, addon EBS CSI
+│   ├── iam.tf                         # Roles IRSA para EBS CSI e ALB controller
+│   ├── iam_policy.json                # Política IAM do ALB controller
+│   ├── vpc.tf                         # VPC, subnets, NAT Gateway, IGW
+│   ├── sg.tf                          # Security group dos worker nodes
+│   ├── outputs.tf                     # Outputs consumidos pela camada apps/
+│   ├── variables.tf                   # Variáveis de entrada
+│   ├── versions.tf                    # Versões dos providers
+│   ├── backend.tf                     # Configuração do backend Terraform
+│   └── README.md                      # Documentação detalhada da camada infra
+├── apps/                              # Camada de aplicações Kubernetes
+│   ├── helm.tf                        # Todos os Helm releases
+│   ├── k8s-resources.tf               # StorageClass gp3
+│   ├── providers.tf                   # Providers helm e kubernetes
+│   ├── variables.tf                   # Variáveis de entrada
+│   ├── versions.tf                    # Versões dos providers
+│   ├── backend.tf                     # Configuração do backend Terraform
+│   ├── sample-app-chart/              # Chart Helm local da aplicação de exemplo
+│   ├── values/                        # Values dos charts Helm
+│   │   ├── values-alb-controller.yaml
+│   │   ├── values-kube-prometheus-stack.yaml
+│   │   ├── values-loki.yaml
+│   │   ├── values-tempo.yaml
+│   │   └── values-otel-collector.yaml
+│   └── README.md                      # Documentação detalhada da camada apps
 ├── .gitignore
-├── .terraform.lock.hcl
 └── README.md
 ```
+
+> Documentação detalhada de cada recurso: [infra/README.md](infra/README.md) e [apps/README.md](apps/README.md)
 
 ---
 
 ## 🏢 Componentes de Infraestrutura
 
+> Documentação completa em [infra/README.md](infra/README.md)
+
 ### Arquitetura de Rede
 
-A infraestrutura implementa uma topologia de rede segura:
-
-- **VPC**: VPC personalizada com bloco CIDR configurado via variáveis
-- **Subnets Públicas**: 2 subnets com acesso ao Internet Gateway (IGW)
-- **Subnets Privadas**: 2 subnets com NAT Gateway para acesso de saída à internet
-- **Security Groups**: 
-  - Security group do control plane com portas mínimas necessárias
-  - Security group de worker nodes para comunicação do cluster
-  - Security group do ALB controller para tráfego de ingress
+- **VPC** `10.0.0.0/16` com subnets públicas (ALB) e privadas (nodes) em 2 AZs
+- **NAT Gateway** único nas subnets públicas para acesso de saída dos nodes
+- **Security Group** dos worker nodes: ingress liberado para RFC-1918, egress irrestrito
 
 ### Recursos de Computação
 
-- **Cluster EKS**: Control plane Kubernetes gerenciado
-- **Node Groups**: 
-  - Distribuídos em 2 Availability Zones
-  - Auto-scaling habilitado
-  - Colocação em subnets privadas para segurança aprimorada
+- **Cluster EKS** v1.32 com endpoints público e privado habilitados
+- **Node Group** gerenciado: `t3.medium` (2 vCPU, 4 GiB), 2 nodes (escala até 6), nas subnets privadas
 
-### Configuração IAM
+### Configuração IAM (IRSA)
 
-- **Role do Cluster EKS**: Permissões para gerenciamento do cluster
-- **Role do Node Group**: Permissões para worker nodes
-- **Política do ALB Controller**: Política personalizada para gerenciamento de load balancers
-- **EKS Access Entry**: Configuração automática de acesso administrativo ao cluster via Terraform (executado após criação do cluster)
+Nenhuma credencial estática. Ambas as roles usam **IRSA via OIDC**:
+
+- **EBS CSI Driver Role** — permite ao addon `aws-ebs-csi-driver` criar/annexar volumes EBS, restrito à service account `kube-system:ebs-csi-controller-sa`
+- **ALB Controller Role** — permite ao AWS Load Balancer Controller gerenciar ALBs, restrito à service account `kube-system:aws-load-balancer-controller`
+- **EKS Access Entries** — acesso admin configurado via API de Access Entries (sem necessidade de editar `aws-auth` ConfigMap)
 
 ---
 
 ## 🚀 Componentes de Aplicação
 
-### Storage Classes
+> Documentação completa em [apps/README.md](apps/README.md)
 
-#### GP3 StorageClass
-- Provider: `kubernetes.io/aws-ebs` (in-tree provider para maior estabilidade)
-- Tipo: gp3
-- Criptografia: habilitada por padrão
-- Expansão de volume: suportada
-- Tipo de bind: WaitForFirstConsumer (recomendado para melhor zone affinity)
-- **Nota**: Usa in-tree provider para evitar PVCs pendentes que podem ocorrer com o driver CSI `ebs.csi.aws.com`
+### Storage
+
+- **StorageClass `gp3`**: provisioner in-tree (`kubernetes.io/aws-ebs`), criptografia habilitada, política `Retain`, bind `WaitForFirstConsumer`
+
+### Stack de Observabilidade
+
+| Componente | Função | Sinal |
+|---|---|---|
+| **kube-prometheus-stack** | Coleta de métricas, dashboards, alertas | Métricas |
+| **Loki** | Armazenamento de logs | Logs |
+| **Promtail** | Coleta de logs de todos os namespaces (DaemonSet) | Logs |
+| **Tempo** | Armazenamento de traces distribuídos | Traces |
+| **OTel Collector** | Gateway OTLP — recebe e roteia os três sinais | Métricas / Logs / Traces |
+| **AWS Load Balancer Controller** | Provisiona ALBs a partir de recursos Ingress | — |
 
 ### Aplicação de Exemplo
 
-#### Sample App
-- Aplicação Nginx simples para demonstração
-- Monta volume GP3 em `/data`
-- Demonstra uso de PersistentVolumeClaim
-- Configurável via values.yaml
-- Pode ser removida em produção
-
-### Stack de Monitoramento
-
-#### Prometheus
-- Banco de dados de séries temporais para coleta de métricas
-- Service discovery para recursos Kubernetes
-- Períodos de retenção configuráveis
-- Capacidades de alerta (Alertmanager desabilitado para simplificar deployment)
-
-#### Grafana
-- Dashboard de visualização para métricas
-- Dashboards pré-configurados para monitoramento EKS
-- Suporte a dashboards personalizados
-- Autenticação de usuário (admin/prom-operator)
-
-#### Blackbox Exporter
-- Monitoramento de endpoints externos
-- Probes HTTP, HTTPS, ICMP e TCP
-- Intervalos de probe configuráveis
-- Integração com alertas do Prometheus
-
-### Ingress Controller
-
-- **AWS Load Balancer Controller**
-  - Gerenciamento de recursos Ingress
-  - Integração automática de certificados SSL/TLS
-  - Integração Route 53 (melhoria futura)
+- **sample-app**: Nginx simples com PVC gp3 de 5 GiB, usado para validar o cluster e o storage
 
 ---
 
@@ -292,6 +267,20 @@ A infraestrutura implementa uma topologia de rede segura:
    terraform apply
    ```
 
+### Destruição do ambiente
+
+> ⚠️ **Ordem obrigatória**: destrua `apps/` primeiro. Os Helm releases criam recursos AWS (ALBs, ENIs, Security Groups) fora do estado do Terraform de `infra/`. Se o `infra/` for destruído primeiro, esses recursos ficam órfãos e impedem a exclusão da VPC.
+
+```bash
+# 1. Destruir aplicações (remove ALBs e demais recursos AWS criados pelos Helm releases)
+cd apps
+terraform destroy
+
+# 2. Destruir infraestrutura
+cd ../infra
+terraform destroy
+```
+
 ### GitHub Actions Deploy
 
 O projeto utiliza GitHub Actions para CI/CD. Certifique-se de que os seguintes secrets estejam configurados no seu repositório:
@@ -312,10 +301,14 @@ O workflow irá:
 
 ### Dashboard Grafana
 
-- **URL**: `http://<elb-dns-name>/dashboards`
+```bash
+# Obter a URL do ALB criado pelo Ingress do Grafana
+kubectl get ingress -n monitoring
+```
+
 - **Usuário**: `admin`
-- **Senha**: `prom-operator`
-- **Dashboard do Cluster EKS**: `http://<elb-dns-name>/d/4XuMd2Iiz/kubernetes-eks-cluster-prometheus`
+- **Senha**: `changeme` (definida em `values-kube-prometheus-stack.yaml` — altere antes de ir para produção)
+- Datasources pré-configurados: **Prometheus**, **Loki**, **Tempo** (com correlação trace→log)
 
 > ⚠️ **Nota de Segurança**: Altere as credenciais padrão imediatamente após o primeiro deploy. Use AWS Secrets Manager ou secrets do Kubernetes para deployments em produção.
 
@@ -361,30 +354,34 @@ variable "eks_admin_principal_arn" {
 
 ### Values Helm
 
-Personalize as configurações do Prometheus e Grafana em `apps/values-prometheus.yaml`:
+Cada componente possui seu próprio arquivo de values em `apps/values/`. Exemplos de customizações comuns:
 
 ```yaml
+# apps/values/values-kube-prometheus-stack.yaml
 prometheus:
-  retention: 15d
-  storageClass: gp2
-  resources:
-    requests:
-      memory: "512Mi"
-      cpu: "100m"
-    limits:
-      memory: "2Gi"
-      cpu: "1000m"
+  prometheusSpec:
+    retention: 15d        # Retenção de métricas
+    retentionSize: "40GiB"
+
+# apps/values/values-tempo.yaml
+tempo:
+  retention: 24h          # Retenção de traces (curta — aumente conforme necessário)
+
+# apps/values/values-loki.yaml
+singleBinary:
+  persistence:
+    size: 20Gi            # Tamanho do volume de logs
 ```
 
 ### Configuração de Escala
 
-Modifique o scaling do node group em `infra/eks-cluster.tf`:
+Modifique o sizing do node group em `infra/eks-cluster.tf`:
 
 ```hcl
-scaling_config {
+node_group = {
+  min_size     = 2
+  max_size     = 6
   desired_size = 2
-  max_size     = 4
-  min_size     = 1
 }
 ```
 
@@ -461,9 +458,9 @@ terraform apply
   - Execução obrigatória de HTTPS para todos os endpoints
   - Suporte a domínios personalizados
 
-- [ ] **Armazenamento Persistente**
-  - Criação de PV/PVC para persistência de dados do Prometheus
-  - Provisionamento de volumes EBS com IOPS apropriados
+- [x] **Armazenamento Persistente**
+  - ~~Criação de PV/PVC para persistência de dados do Prometheus~~ ✅ Implementado (gp3, todos os componentes)
+  - ~~Provisionamento de volumes EBS com IOPS apropriados~~ ✅ gp3 com EBS CSI Driver
   - Procedimentos de backup e restore
   - Otimização de storage classes
 
@@ -473,14 +470,14 @@ terraform apply
   - Sincronização automática com repositório Git
   - Integração de rollback e controle de versão
 
-- [ ] **Capacidades de Monitoramento Adicionais**
-  - Monitoramento de Performance de Aplicação (APM)
-  - Integração de tracing distribuído
-  - Coleta de métricas personalizadas
+- [x] **Capacidades de Monitoramento Adicionais**
+  - ~~Monitoramento de Performance de Aplicação (APM)~~ ✅ OTel Collector + Tempo
+  - ~~Integração de tracing distribuído~~ ✅ Tempo com correlação trace→log
+  - ~~Coleta de métricas personalizadas~~ ✅ via OTLP para Prometheus
   - Alertas avançados com integração PagerDuty/Slack
 
 - [ ] **Melhorias de Segurança**
-  - IRSA (IAM Roles for Service Accounts)
+  - ~~IRSA (IAM Roles for Service Accounts)~~ ✅ Implementado
   - Implementação de Pod Security Standards
   - Aplicação de políticas de rede
   - Criptografia de secrets em repouso
