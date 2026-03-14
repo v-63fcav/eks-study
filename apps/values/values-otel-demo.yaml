@@ -15,9 +15,11 @@ opensearch:
   enabled: false
 
 # ── Override the demo's internal OTel Collector ────────────────────────────────
-# Forward traces to our Tempo instance instead of Jaeger.
-# Helm deep-merges this config with the chart defaults; we only need to
-# patch the exporter and replace the traces pipeline exporters list.
+# The demo chart uses a `spanmetrics` connector: it sits in the traces pipeline
+# as an exporter AND in the metrics pipeline as a receiver. Removing it from
+# either side causes the CrashLoopBackOff we saw. We must keep it in both
+# pipelines and only swap out the final backends (Jaeger → Tempo, demo
+# Prometheus → our kube-prometheus-stack).
 opentelemetry-collector:
   config:
     exporters:
@@ -25,10 +27,17 @@ opentelemetry-collector:
         endpoint: tempo.monitoring:4317
         tls:
           insecure: true
+      prometheusremotewrite:
+        endpoint: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
+        tls:
+          insecure: true
     service:
       pipelines:
         traces:
-          exporters: [otlp/tempo, debug]
+          # Keep spanmetrics here — it feeds the metrics pipeline below
+          exporters: [otlp/tempo, spanmetrics]
+        metrics:
+          exporters: [prometheusremotewrite]
 
 # ── Expose the frontend via the AWS ALB Controller ────────────────────────────
 components:
