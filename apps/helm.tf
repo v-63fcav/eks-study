@@ -76,6 +76,18 @@ resource "helm_release" "sample_app" {
   depends_on = [kubernetes_storage_class_v1.gp3]
 }
 
+resource "helm_release" "otel_demo" {
+  name             = "otel-demo"
+  repository       = "https://open-telemetry.github.io/opentelemetry-helm-charts"
+  chart            = "opentelemetry-demo"
+  namespace        = "otel-demo"
+  create_namespace = true
+
+  values = [file("${path.module}/values/values-otel-demo.yaml")]
+
+  depends_on = [helm_release.tempo]
+}
+
 resource "helm_release" "opentelemetry_collector" {
   name       = "opentelemetry-collector"
   repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"

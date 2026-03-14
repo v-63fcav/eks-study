@@ -1,0 +1,50 @@
+## OpenTelemetry Demo chart values
+## Chart: open-telemetry/opentelemetry-demo
+
+# ── Disable sub-charts we already have in the cluster ─────────────────────────
+grafana:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+jaeger:
+  enabled: false
+
+opensearch:
+  enabled: false
+
+# ── Override the demo's internal OTel Collector ────────────────────────────────
+# Forward traces to our Tempo instance instead of Jaeger.
+# Helm deep-merges this config with the chart defaults; we only need to
+# patch the exporter and replace the traces pipeline exporters list.
+opentelemetry-collector:
+  config:
+    exporters:
+      otlp/tempo:
+        endpoint: tempo.monitoring:4317
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          exporters: [otlp/tempo, debug]
+
+# ── Expose the frontend via the AWS ALB Controller ────────────────────────────
+components:
+  frontendProxy:
+    ingress:
+      enabled: true
+      ingressClassName: alb
+      annotations:
+        alb.ingress.kubernetes.io/scheme: internet-facing
+        alb.ingress.kubernetes.io/target-type: ip
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+        alb.ingress.kubernetes.io/healthcheck-path: /
+        alb.ingress.kubernetes.io/success-codes: "200"
+      hosts:
+        - host: ""     # ALB hostname assigned dynamically
+          paths:
+            - path: /
+              pathType: Prefix
+              port: 8080
