@@ -68,26 +68,6 @@ resource "helm_release" "promtail" {
   depends_on = [helm_release.loki]
 }
 
-resource "helm_release" "sample_app" {
-  name      = "sample-app"
-  chart     = "${path.module}/sample-app-chart"
-  namespace = "default"
-
-  depends_on = [kubernetes_storage_class_v1.gp3]
-}
-
-resource "helm_release" "otel_demo" {
-  name             = "otel-demo"
-  repository       = "https://open-telemetry.github.io/opentelemetry-helm-charts"
-  chart            = "opentelemetry-demo"
-  namespace        = "otel-demo"
-  create_namespace = true
-
-  values = [file("${path.module}/values/values-otel-demo.yaml")]
-
-  depends_on = [helm_release.tempo]
-}
-
 resource "helm_release" "opentelemetry_collector" {
   name       = "opentelemetry-collector"
   repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
@@ -98,4 +78,20 @@ resource "helm_release" "opentelemetry_collector" {
   values = [file("${path.module}/values/values-otel-collector.yaml")]
 
   depends_on = [helm_release.loki, helm_release.tempo, helm_release.kube_prometheus_stack]
+}
+
+resource "helm_release" "sample_app" {
+  name      = "sample-app"
+  chart     = "${path.module}/sample-app-chart"
+  namespace = "default"
+
+  depends_on = [kubernetes_storage_class_v1.gp3]
+}
+
+resource "helm_release" "otel_test_app" {
+  name      = "otel-test-app"
+  chart     = "${path.module}/otel-test-app-chart"
+  namespace = "default"
+
+  depends_on = [helm_release.opentelemetry_collector]
 }

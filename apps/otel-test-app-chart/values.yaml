@@ -1,0 +1,32 @@
+replicaCount: 1
+
+image:
+  repository: nicholasjackson/fake-service
+  pullPolicy: IfNotPresent
+  tag: "v0.26.2"
+
+service:
+  port: 9090
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/success-codes: "200"
+
+otel:
+  serviceName: otel-test-app
+  # Points to the existing OTel Collector gateway in the monitoring namespace
+  collectorEndpoint: "http://opentelemetry-collector.monitoring:4318"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi

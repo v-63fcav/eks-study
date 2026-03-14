@@ -1,0 +1,6 @@
+apiVersion: v2
+name: otel-test-app
+description: Lightweight OTel-instrumented test service (fake-service)
+type: application
+version: 0.1.0
+appVersion: "v0.26.2"
